@@ -1939,6 +1939,19 @@
       L460_HISTORY_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQdaOZBWx_0wYOq7Bu-LvTxaST0MONyHF3mKNnwUw5UrTIV735knC34GAlWu3DvcGW6gG1Pq6juwvya/pub?gid=1201534735&single=true&output=csv'
     };
 
+    // URL settings are namespaced by the current hard-coded links. If the links
+    // are changed in this file and redeployed, old browser overrides are ignored.
+    // Settings saved through the configuration window still override these defaults.
+    function getUrlStorageKey(name) {
+      const seed = Object.values(DEFAULT_CONFIG).join('|');
+      let hash = 2166136261;
+      for (let i = 0; i < seed.length; i++) {
+        hash ^= seed.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return `PROTO_URLCFG_${(hash >>> 0).toString(16)}_${name}`;
+    }
+
     const STATION_PIPELINE = [
       "KSK & Pre-Assy", "INSERTION", "BANDAGE", "OUT OF LINE",
       "GROMMET TEST", "CTT", "Cotation", "OLT",
@@ -2146,9 +2159,9 @@
     function loadStoredConfig() {
       try {
         const configKey = getActiveConfigKey();
-        const activeUrl = localStorage.getItem(`PROTO_URL_${configKey}`) || '';
-        const storedL461 = localStorage.getItem('PROTO_L461_URL') || DEFAULT_CONFIG.L461_URL;
-        const storedL460 = localStorage.getItem('PROTO_L460_URL') || DEFAULT_CONFIG.L460_URL;
+        const activeUrl = localStorage.getItem(getUrlStorageKey(`URL_${configKey}`)) || '';
+        const storedL461 = localStorage.getItem(getUrlStorageKey('L461_URL')) || DEFAULT_CONFIG.L461_URL;
+        const storedL460 = localStorage.getItem(getUrlStorageKey('L460_URL')) || DEFAULT_CONFIG.L460_URL;
 
         const activeInput = document.getElementById('currentConfigUrlInput');
         const l461HistoryInput = document.getElementById('l461HistoryUrlInput');
@@ -2157,8 +2170,8 @@
         const l460Input = document.getElementById('l460UrlInput');
 
         if (activeInput) activeInput.value = activeUrl;
-        if (l461HistoryInput) l461HistoryInput.value = localStorage.getItem('PROTO_L461_HISTORY_URL') || DEFAULT_CONFIG.L461_HISTORY_URL;
-        if (l460HistoryInput) l460HistoryInput.value = localStorage.getItem('PROTO_L460_HISTORY_URL') || DEFAULT_CONFIG.L460_HISTORY_URL;
+        if (l461HistoryInput) l461HistoryInput.value = localStorage.getItem(getUrlStorageKey('L461_HISTORY_URL')) || DEFAULT_CONFIG.L461_HISTORY_URL;
+        if (l460HistoryInput) l460HistoryInput.value = localStorage.getItem(getUrlStorageKey('L460_HISTORY_URL')) || DEFAULT_CONFIG.L460_HISTORY_URL;
         if (l461Input) l461Input.value = storedL461;
         if (l460Input) l460Input.value = storedL460;
 
@@ -2188,18 +2201,20 @@
       try {
         const configKey = getActiveConfigKey();
         if (activeUrlVal) {
-          localStorage.setItem(`PROTO_URL_${configKey}`, activeUrlVal);
+          localStorage.setItem(getUrlStorageKey(`URL_${configKey}`), activeUrlVal);
         } else {
-          localStorage.removeItem(`PROTO_URL_${configKey}`);
+          localStorage.removeItem(getUrlStorageKey(`URL_${configKey}`));
         }
-        if (l461HistoryVal) localStorage.setItem('PROTO_L461_HISTORY_URL', l461HistoryVal);
-        else localStorage.removeItem('PROTO_L461_HISTORY_URL');
-        if (l460HistoryVal) localStorage.setItem('PROTO_L460_HISTORY_URL', l460HistoryVal);
-        else localStorage.removeItem('PROTO_L460_HISTORY_URL');
+        if (l461HistoryVal) localStorage.setItem(getUrlStorageKey('L461_HISTORY_URL'), l461HistoryVal);
+        else localStorage.removeItem(getUrlStorageKey('L461_HISTORY_URL'));
+        if (l460HistoryVal) localStorage.setItem(getUrlStorageKey('L460_HISTORY_URL'), l460HistoryVal);
+        else localStorage.removeItem(getUrlStorageKey('L460_HISTORY_URL'));
         // Remove the old per-build history setting so the new line-level history links are used.
-        localStorage.removeItem(`PROTO_HISTORY_URL_${configKey}`);
-        if (l461Val) localStorage.setItem('PROTO_L461_URL', l461Val);
-        if (l460Val) localStorage.setItem('PROTO_L460_URL', l460Val);
+        localStorage.removeItem(getUrlStorageKey(`HISTORY_URL_${configKey}`));
+        if (l461Val) localStorage.setItem(getUrlStorageKey('L461_URL'), l461Val);
+        else localStorage.removeItem(getUrlStorageKey('L461_URL'));
+        if (l460Val) localStorage.setItem(getUrlStorageKey('L460_URL'), l460Val);
+        else localStorage.removeItem(getUrlStorageKey('L460_URL'));
       } catch (e) {}
 
       closeConfigModal();
@@ -2209,13 +2224,13 @@
     function getActiveUrl() {
       try {
         const configKey = getActiveConfigKey();
-        const specificUrl = localStorage.getItem(`PROTO_URL_${configKey}`);
+        const specificUrl = localStorage.getItem(getUrlStorageKey(`URL_${configKey}`));
         if (specificUrl) return specificUrl;
 
         if (currentLine === 'L461') {
-          return localStorage.getItem('PROTO_L461_URL') || DEFAULT_CONFIG.L461_URL;
+          return localStorage.getItem(getUrlStorageKey('L461_URL')) || DEFAULT_CONFIG.L461_URL;
         } else {
-          return localStorage.getItem('PROTO_L460_URL') || DEFAULT_CONFIG.L460_URL;
+          return localStorage.getItem(getUrlStorageKey('L460_URL')) || DEFAULT_CONFIG.L460_URL;
         }
       } catch (e) {
         return currentLine === 'L461' ? DEFAULT_CONFIG.L461_URL : DEFAULT_CONFIG.L460_URL;
@@ -2314,8 +2329,8 @@
       // work immediately for anyone who opens a fresh copy of this HTML file.
       try {
         return currentLine === 'L461'
-          ? (localStorage.getItem('PROTO_L461_HISTORY_URL') || DEFAULT_CONFIG.L461_HISTORY_URL)
-          : (localStorage.getItem('PROTO_L460_HISTORY_URL') || DEFAULT_CONFIG.L460_HISTORY_URL);
+          ? (localStorage.getItem(getUrlStorageKey('L461_HISTORY_URL')) || DEFAULT_CONFIG.L461_HISTORY_URL)
+          : (localStorage.getItem(getUrlStorageKey('L460_HISTORY_URL')) || DEFAULT_CONFIG.L460_HISTORY_URL);
       } catch(e) {
         return currentLine === 'L461' ? DEFAULT_CONFIG.L461_HISTORY_URL : DEFAULT_CONFIG.L460_HISTORY_URL;
       }
