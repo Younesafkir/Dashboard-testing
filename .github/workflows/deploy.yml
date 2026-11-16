@@ -14,14 +14,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - run: npm install -g javascript-obfuscator
-      - run: mkdir dist
-      - run: |
-          javascript-obfuscator src/index.html \
-            --output dist/index.html \
-            --compact true \
-            --control-flow-flattening true \
-            --string-array true \
-            --rename-globals false
+      - run: node scripts/obfuscate.js
       - uses: actions/upload-pages-artifact@v3
         with: { path: dist }
   deploy:
