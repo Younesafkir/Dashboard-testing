@@ -1477,18 +1477,23 @@
     :root[data-theme="light"] .btn-live-toggle.active { color: #064e3b; }
     :root[data-theme="light"] .toast-notice { color: #052e16; }
 
-
-    .kpi-trend{margin-top:.55rem;display:flex;align-items:center;gap:.6rem;font:600 .7rem var(--font-mono);color:var(--text-dim);flex-wrap:wrap}
-    .kpi-trend svg{width:84px;height:22px}
-    .t-good{color:var(--status-done)}.t-bad{color:var(--status-stopped)}.t-flat{color:var(--text-dim)}
-    .queue-section{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:1.1rem 1.25rem;margin-bottom:1.25rem}
-    .queue-row{display:grid;grid-template-columns:150px 1fr 150px;gap:.75rem;align-items:center;padding:5px 0;font-size:.78rem;cursor:pointer}
-    .queue-row:hover{background:var(--bg-card)}
-    .queue-bar{display:flex;height:14px;background:var(--bg-card);border-radius:4px;overflow:hidden}
-    .queue-meta{font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);text-align:right}
-    .queue-meta b{color:var(--status-stopped)}
-    .scurve-note{font-size:.78rem;font-family:var(--font-mono);font-weight:700}
-    @media(max-width:700px){.queue-row{grid-template-columns:100px 1fr}.queue-meta{display:none}}
+  .ship-alert-banner {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid var(--status-stopped);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1.1rem;
+    margin-bottom: 1.25rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: none;
+  }
+  .ship-badge { display:inline-block; padding:2px 8px; border-radius:999px; font:700 .68rem var(--font-mono); white-space:nowrap; }
+  .ship-overdue { background: var(--status-stopped-bg); color: var(--status-stopped); }
+  .ship-urgent  { background: var(--status-rework-bg); color: var(--status-rework); }
+  .ship-upcoming{ background: rgba(59,130,246,0.15); color:#3b82f6; }
+  .ship-normal  { background: var(--bg-card); color: var(--text-dim); }
+  .cable-badge  { display:inline-block; padding:2px 8px; border-radius:999px; font:700 .68rem var(--font-mono); background: rgba(168,85,247,0.15); color:#a855f7; white-space:nowrap; }
+  .ship-info-note { background: rgba(16,185,129,0.1); border: 1px solid var(--status-done); border-radius: var(--radius-md); padding: 0.6rem 1rem; margin-bottom: 0.75rem; font-size: 0.8rem; display:none; }
   </style>
 </head>
 <body>
@@ -1547,7 +1552,7 @@
 
       <!-- Action Controls -->
       <div class="action-controls">
-        <div class="target-box" id="targetBox" style="cursor:pointer" title="Click to edit target quantity and plan finish date">
+        <div class="target-box" title="Total planned harness quantity">
           <label>Target:</label>
           <span id="targetQtyDisplay">46</span>
         </div>
@@ -1571,6 +1576,44 @@
 
     <!-- Error Banner -->
     <div class="error-banner" id="errorBanner"></div>
+
+    <!-- Shipment Urgency Alert -->
+    <div class="ship-alert-banner" id="shipAlertBanner"></div>
+
+    <!-- Shipment Planning -->
+    <section class="quality-container" id="shipPlanSection">
+      <div class="table-toolbar">
+        <div class="section-title">
+          <svg class="icon" style="color:#3b82f6;" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+          Shipment Planning
+        </div>
+        <div class="table-filter-pills">
+          <button class="filter-pill active" onclick="shipFilterClick('ALL', this)">All</button>
+          <button class="filter-pill" onclick="shipFilterClick('OVERDUE', this)">Overdue</button>
+          <button class="filter-pill" onclick="shipFilterClick('URGENT', this)">Urgent (≤2d)</button>
+          <button class="filter-pill" onclick="shipFilterClick('UPCOMING', this)">Upcoming (≤7d)</button>
+          <button class="filter-pill" onclick="shipFilterClick('CABLE', this)">Needs battery Cable</button>
+          <button class="filter-pill" onclick="shipFilterClick('UNDECIDED', this)">Undecided (TBC)</button>
+        </div>
+      </div>
+      <div class="ship-info-note" id="shipAllDoneNote"></div>
+      <div class="defect-table-wrapper">
+        <table class="defect-table">
+          <thead>
+            <tr>
+              <th>IO / Serial</th>
+              <th>Station</th>
+              <th>Status</th>
+              <th>Ship Date</th>
+              <th>Days Left</th>
+              <th>Cable Needed</th>
+              <th>Issue / Comment</th>
+            </tr>
+          </thead>
+          <tbody id="shipPlanBody"></tbody>
+        </table>
+      </div>
+    </section>
 
     <!-- Executive Standup Summary Strip -->
     <section class="standup-bar" id="standupBar">
@@ -1754,9 +1797,9 @@
             </div>
 
             <div class="diag-stat-card">
-              <div class="diag-stat-label">Packaging Feed</div>
+              <div class="diag-stat-label">Downstream Starvation</div>
               <div class="diag-stat-val" id="diagStarvationRate" style="color: var(--accent-primary);">--</div>
-              <div class="diag-stat-hint" id="diagStarvationHint">Units queued ahead of Packaging</div>
+              <div class="diag-stat-hint">Packaging queue impact</div>
             </div>
 
             <div class="diag-stat-card">
@@ -1831,17 +1874,6 @@
       </div>
     </section>
 
-
-    <section class="queue-section" id="queueSection">
-      <div class="section-title">Live Queue by Station <small style="font-size:.75rem;color:var(--text-dim);font-weight:400;margin-left:6px">(units currently held at each station, oldest wait, rework rate of units that reached it)</small></div>
-      <div id="queueRows" style="margin-top:.6rem"></div>
-    </section>
-    <section class="analytics-grid" id="ftqSection"><div class="analytics-card" style="grid-column:1/-1">
-      <div class="section-title">First Time Quality & Rework Rate Trend</div>
-      <div class="analytics-subtitle">FTQ = units not in rework or stopped, as a share of units tracked, per recorded date.</div>
-      <div class="analytics-chart" id="ftqTrendChart"><div class="analytics-empty">Waiting for history data…</div></div>
-      <div class="analytics-legend"><span><i style="background:#10b981"></i>FTQ %</span><span><i style="background:#f59e0b"></i>Rework rate %</span></div>
-    </div></section>
     <!-- Deep-Dive Analytics: Family Breakdown, Powertrain Throughput, Top Defect Pareto -->
     <section class="insights-grid">
       <!-- Family Breakdown -->
@@ -1970,7 +2002,7 @@
     const STATION_PIPELINE = [
       "KSK & Pre-Assy", "INSERTION", "BANDAGE", "OUT OF LINE",
       "GROMMET TEST", "TORQUE", "CTT", "Cotation", "OLT",
-      "Beep Production", "Beep Quality", "CHANNEL", "PACKAGING"
+      "CHANNEL", "PACKAGING"
     ];
 
     // State Variables
@@ -2892,6 +2924,8 @@
           reworkStation: r['Rework station'] || '',
           stoppedBy: r['Stopped By'] || '',
           comment: r['Comment'] || '',
+          shipmentDate: r['Shippement Date'] || '',
+          cableNeed: (r['NON HVAC'] || '').trim(),
           family: family,
           bev: bev,
           phev: phev,
@@ -3631,7 +3665,7 @@ _Generated by Prototype Dashboard_`;
   var PIPELINE = (typeof STATION_PIPELINE !== 'undefined' && Array.isArray(STATION_PIPELINE))
     ? STATION_PIPELINE.slice()
     : ['KSK & Pre-Assy', 'INSERTION', 'BANDAGE', 'OUT OF LINE', 'GROMMET TEST', 'TORQUE', 'CTT',
-       'Cotation', 'OLT', 'Beep Production', 'Beep Quality', 'CHANNEL', 'PACKAGING'];
+       'Cotation', 'OLT', 'CHANNEL', 'PACKAGING'];
 
   var ENTRY = PIPELINE[0];
 
@@ -3652,11 +3686,6 @@ _Generated by Prototype Dashboard_`;
     preassembly: 'KSK & Pre-Assy',
     kskpreassembly: 'KSK & Pre-Assy',
     outofline: 'OUT OF LINE',
-    beeprod: 'Beep Production',
-    beepprod: 'Beep Production',
-    beepqa: 'Beep Quality',
-    beeppqa: 'Beep Quality',
-    beepqc: 'Beep Quality',
     grommet: 'GROMMET TEST'
   };
 
@@ -3912,198 +3941,173 @@ _Generated by Prototype Dashboard_`;
 </script>
 <script>
 (function(){
-  var AGING_H = 48;                       // hours at one station before a unit is flagged as aging
-  // Optional per-build plan. Key = LINE_BUILD_MY. Fallback = DEFAULT_TARGETS[line]. Can also be edited by clicking the Target box.
-  var PLAN = { /* 'L461_VB3_MY28': { target: 46, planEnd: '2026-12-01' } */ };
-  var $ = function(i){ return document.getElementById(i); };
-  var ck = function(){ return getActiveConfigKey(); };
-  function ld(k){ try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch(e){ return null; } }
-  function sv(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
-  function cfg(){ return Object.assign({}, PLAN[ck()], ld('PROTO_PLAN_' + ck())); }
-  function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-  function ref(){ return (historyMode==='HISTORY' && historySelectedDate) ? historyDateEnd(historySelectedDate) : new Date(); }
-  function isPk(u){ return u.station.toUpperCase()==='PACKAGING' && u.status==='DONE'; }
+  'use strict';
+  if (window._PROTO_SHIP_PLAN_) return;
+  window._PROTO_SHIP_PLAN_ = true;
 
-  // ---- data-driven targets
-  var _gt = getCurrentTargetQty;
-  getCurrentTargetQty = function(){ var t = Number(cfg().target); return t > 0 ? t : _gt(); };
-  document.addEventListener('DOMContentLoaded', function(){
-    var b = $('targetBox'); if (!b) return;
-    b.onclick = function(){
-      var c = cfg(), t = prompt('Target quantity for ' + ck() + ':', getCurrentTargetQty());
-      if (t === null) return;
-      var e = prompt('Plan finish date (YYYY-MM-DD), blank for none:', c.planEnd || '');
-      var o = { target: Number(t) > 0 ? Number(t) : undefined, planEnd: /^\d{4}-\d{2}-\d{2}$/.test((e||'').trim()) ? e.trim() : undefined };
-      sv('PROTO_PLAN_' + ck(), o); updateTargetDisplay(); applyFilters();
-    };
-  });
+  var $ = function(id){ return document.getElementById(id); };
+  var shipLevelFilter = 'ALL';
 
-  // ---- daily series rebuilt from the history CSV (one latest state per IO per date)
-  var cache = {};
-  function series(){
-    var k = ck(), dates = (historyDatesStore[k] || []).slice(-30), n = (historyRowsStore[k] || []).length;
-    var id = k + '|' + dates.length + '|' + n + '|' + dates[dates.length-1];
-    if (cache.id !== id) {
-      cache.v = dates.map(function(d){
-        var r = reconstructRowsAtDate(d), p = 0, w = 0, s = 0;
-        r.forEach(function(x){
-          var st = String(x.Status||'').toUpperCase(), sn = String(x.Station||'').toUpperCase();
-          if (sn==='PACKAGING' && st==='DONE') p++; else if (st==='REWORK') w++; else if (st==='STOPPED') s++;
-        });
-        var t = r.length;
-        return { date:d, packaged:p, total:t, wip:t-p, rework:w, stopped:s,
-                 ftq: t ? Math.round((t-w-s)/t*1000)/10 : 100, rw: t ? Math.round(w/t*1000)/10 : 0 };
-      });
-      cache.id = id;
-    }
-    return cache.v.filter(function(p){ return historyMode!=='HISTORY' || p.date <= historySelectedDate; });
+  function P(){ return (typeof STATION_PIPELINE !== 'undefined' && Array.isArray(STATION_PIPELINE)) ? STATION_PIPELINE : []; }
+  function stIdx(u){
+    var p = P(), i = p.findIndex(function(s){ return s.toUpperCase() === String(u.station||'').toUpperCase(); });
+    return i < 0 ? p.length - 1 : i;
   }
-  function velocity(){            // rolling units/day over the last 5 calendar days of history
-    var s = series(); if (s.length < 2) return null;
-    var w = s.slice(-6), days = (new Date(w[w.length-1].date) - new Date(w[0].date)) / 864e5;
-    var v = days > 0 ? (w[w.length-1].packaged - w[0].packaged) / days : 0;
-    return v > 0 ? v : null;
+  function torqueIdx(){ return P().findIndex(function(s){ return s.toUpperCase() === 'TORQUE'; }); }
+  function isPackaged(u){ return String(u.station||'').toUpperCase() === 'PACKAGING' && u.status === 'DONE'; }
+
+  // Cable is only relevant from now until the harness finishes Torque; after that it's moot.
+  function needsCable(u){
+    if (!u.cableNeed) return false;
+    var ti = torqueIdx(); if (ti < 0) return true;
+    var idx = stIdx(u);
+    if (idx < ti) return true;
+    if (idx === ti && u.status !== 'DONE') return true;
+    return false;
   }
 
-  function spark(vals,color){
-    if (vals.length < 2) return '';
-    var mx = Math.max.apply(null,vals), mn = Math.min.apply(null,vals), r = (mx-mn) || 1;
-    var pts = vals.map(function(v,i){ return (i/(vals.length-1)*100).toFixed(1)+','+(22-(v-mn)/r*20-1).toFixed(1); }).join(' ');
-    return '<svg viewBox="0 0 100 22" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>';
+  // A shipment is only "known" when BOTH the date column is a real MM/DD/YY
+  // and the week column is a real Wnn.n. Anything else (blank, Z, TBC, zTBC,
+  // or any other text) means the harness has no confirmed ship date yet, or
+  // it stays in-plant and never ships — either way it goes to the end, unscored.
+  function validShipDate(s){ return /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(String(s||'').trim()); }
+  function validShipWeek(s){ return /^w\d{1,2}\.\d+$/i.test(String(s||'').trim()); }
+  function hasKnownShipment(u){ return validShipDate(u.shipmentDate) && validShipWeek(u.week); }
+  // Both cells blank = this harness never ships (stays in-plant) -> drop it entirely.
+  // Either cell has text but it isn't a real date/week (Z, TBC, zTBC, etc.) -> it
+  // does ship, just not decided yet -> keep it, parked in the TBC bucket.
+  function shipNotRequired(u){
+    return String(u.shipmentDate||'').trim() === '' && String(u.week||'').trim() === '';
   }
-  function trends(live){
-    var s = series(), rd = ref(), d7 = new Date(rd); d7.setDate(d7.getDate()-7);
-    var today = ymd(rd), d7s = ymd(d7);
-    [['kpiCompleted','packaged',1,'#10b981'],['kpiWIP','wip',0,'#3b82f6'],['kpiRework','rework',-1,'#f59e0b'],['kpiStopped','stopped',-1,'#ef4444']].forEach(function(m){
-      var el = $(m[0]); if (!el) return;
-      var card = el.closest('.kpi-card'), box = card.querySelector('.kpi-trend');
-      if (!box) { box = document.createElement('div'); box.className = 'kpi-trend'; card.appendChild(box); }
-      var prev = s.filter(function(p){ return p.date < today; }), y = prev[prev.length-1];
-      var w = s.filter(function(p){ return p.date <= d7s; }), w7 = w[w.length-1];
-      function tag(base,lab){
-        if (!base) return '';
-        var d = live[m[1]] - base[m[1]], cls = d===0 ? 't-flat' : ((d>0) === (m[2]>=0) && m[2]!==0 ? 't-good' : (m[2]===0 ? 't-flat' : 't-bad'));
-        return '<span class="'+cls+'">'+(d>0?'▲ +':d<0?'▼ ':'● ')+d+' '+lab+'</span>';
+
+  function daysLeft(u){
+    if (!hasKnownShipment(u)) return null;
+    var d = (typeof parseDateTime === 'function') ? parseDateTime(u.shipmentDate) : null;
+    if (!d) return null;
+    var today = new Date(); today.setHours(0,0,0,0);
+    var sd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    return Math.round((sd - today) / 86400000);
+  }
+  function urgencyOf(dl){
+    if (dl === null) return 'NONE';
+    if (dl < 0) return 'OVERDUE';
+    if (dl <= 2) return 'URGENT';
+    if (dl <= 7) return 'UPCOMING';
+    return 'NORMAL';
+  }
+  function fmtShipDate(u){
+    if (!hasKnownShipment(u)) return 'TBC';
+    var d = (typeof parseDateTime === 'function') ? parseDateTime(u.shipmentDate) : null;
+    return d ? (d.getMonth()+1) + '/' + d.getDate() + '/' + String(d.getFullYear()).slice(2) : 'TBC';
+  }
+  function fmtDays(dl){
+    if (dl === null) return 'TBC';
+    if (dl < 0) return (-dl) + 'd overdue';
+    if (dl === 0) return 'Today';
+    return dl + 'd';
+  }
+  function issueText(u){
+    if (u.status === 'REWORK') return (u.reworkType || 'Rework') + (u.reworkStation ? ' @ ' + u.reworkStation : '');
+    if (u.status === 'STOPPED') return 'Stopped' + (u.stoppedBy ? ' by ' + u.stoppedBy : '');
+    return u.comment || '';
+  }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  window.shipFilterClick = function(level, btn){
+    shipLevelFilter = level;
+    document.querySelectorAll('#shipPlanSection .filter-pill').forEach(function(b){ b.classList.remove('active'); });
+    if (btn) btn.classList.add('active');
+    renderShipPlan();
+  };
+
+  function renderShipPlan(){
+    var banner = $('shipAlertBanner'), body = $('shipPlanBody'), note = $('shipAllDoneNote');
+    if (!body) return;
+
+    var units = (typeof currentFilteredUnits !== 'undefined' ? currentFilteredUnits : []).filter(function(u){ return !isPackaged(u) && !shipNotRequired(u); });
+    var rows = units.map(function(u){ return { u: u, dl: daysLeft(u), lvl: urgencyOf(daysLeft(u)), cable: needsCable(u) }; });
+
+    var overdueN = rows.filter(function(r){ return r.lvl === 'OVERDUE'; }).length;
+    var urgentN  = rows.filter(function(r){ return r.lvl === 'URGENT'; }).length;
+    var cableN   = rows.filter(function(r){ return r.cable; }).length;
+    // Rows with a confirmed ship date that still need packaging. While any of these
+    // remain, undecided (TBC) harnesses are hidden from the default view so they
+    // don't distract from the real, dated work. Once none remain, TBC harnesses surface.
+    var pendingKnownN = rows.filter(function(r){ return r.lvl !== 'NONE'; }).length;
+    var tbcN = rows.length - pendingKnownN;
+
+    if (note) {
+      if (pendingKnownN === 0 && tbcN > 0) {
+        note.innerHTML = '✅ Every harness with a confirmed ship date is packaged. Showing ' + tbcN + ' harness(es) still waiting on a date or staying in-plant.';
+        note.style.display = 'block';
+      } else {
+        note.style.display = 'none';
       }
-      box.innerHTML = spark(s.slice(-14).map(function(p){ return p[m[1]]; }).concat([live[m[1]]]), m[3]) + tag(y,'vs yday') + tag(w7,'vs 7d');
-    });
-  }
-
-  // ---- S-curve: plan vs actual vs projection
-  function chart(pts,ser,max){
-    var W=620,H=200,l=34,r=10,t=10,b=24,pw=W-l-r,ph=H-t-b;
-    var x=function(i){ return l+i/(pts.length-1||1)*pw; }, y=function(v){ return t+ph-v/max*ph; };
-    var s='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%">';
-    for (var k=0;k<=4;k++){ var v=max*k/4; s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--border-subtle)"/><text x="'+(l-6)+'" y="'+(y(v)+3)+'" text-anchor="end" font-size="10" fill="var(--text-dim)">'+Math.round(v)+'</text>'; }
-    ser.forEach(function(e){
-      var d='',pen=false;
-      pts.forEach(function(p,i){ var v=p[e.k]; if(v==null){pen=false;return;} d+=(pen?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1); pen=true; });
-      s+='<path d="'+d+'" fill="none" stroke="'+e.c+'" stroke-width="2.5" '+(e.dash?'stroke-dasharray="6 4"':'')+'/>';
-    });
-    [0,Math.floor((pts.length-1)/2),pts.length-1].forEach(function(i){ s+='<text x="'+x(i)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10" fill="var(--text-dim)">'+pts[i].date.slice(5)+'</text>'; });
-    return s+'</svg>';
-  }
-  function scurve(done,target,v){
-    var host = $('scurveChart');
-    if (!host) { var f = $('scurveProgressBar').closest('div[style*="flex-direction"]'); host = document.createElement('div'); host.id='scurveChart'; f.appendChild(host); f.style.height='auto'; }
-    var s = series();
-    if (s.length < 2) { host.innerHTML = '<div class="analytics-subtitle">Plan vs actual appears once the history CSV has 2+ dated records.</div>'; return; }
-    var c = cfg(), last = s[s.length-1], start = new Date(s[0].date), lastD = new Date(last.date), rem = Math.max(0,target-last.packaged);
-    var proj = v ? new Date(lastD.getTime() + rem/v*864e5) : null, endD = new Date(Math.max(lastD, c.planEnd ? new Date(c.planEnd) : 0, proj || 0));
-    var days = Math.min(150, Math.round((endD-start)/864e5)), pts = [], si = 0;
-    for (var i=0;i<=days;i++){
-      var d = new Date(start.getTime()+i*864e5), ds = ymd(new Date(d.getTime()+12*36e5)), p = { date: ds };
-      while (si+1 < s.length && s[si+1].date <= ds) si++;
-      if (ds <= last.date) p.actual = s[si].packaged;
-      if (c.planEnd) p.plan = Math.min(target, Math.max(0, target*(d-start)/(new Date(c.planEnd)-start)));
-      if (v && ds >= last.date) p.proj = Math.min(target, last.packaged + v*(d-lastD)/864e5);
-      p.target = target; pts.push(p);
     }
-    var note = '';
-    if (c.planEnd) {
-      var el = Math.max(0, Math.min(1, (ref()-start)/(new Date(c.planEnd)-start))), gap = Math.round(done - target*el);
-      note = '<span class="scurve-note '+(gap>=0?'t-good':'t-bad')+'">'+(gap>=0?'▲ Ahead of plan by '+gap:'▼ Behind plan by '+(-gap))+' units</span>';
-    } else note = '<span class="scurve-note t-flat">Click the Target box to set a plan finish date and enable the plan line.</span>';
-    host.innerHTML = chart(pts,[{k:'target',c:'#64748b',dash:1},{k:'plan',c:'#818cf8'},{k:'actual',c:'#10b981'},{k:'proj',c:'#38bdf8',dash:1}],Math.max(5,Math.ceil(target/5)*5)) +
-      '<div class="analytics-legend"><span><i style="background:#818cf8"></i>Plan</span><span><i style="background:#10b981"></i>Actual</span><span><i style="background:#38bdf8"></i>Projected</span></div>' + note;
-  }
 
-  // ---- KPI wrapper: real velocity/ETA, history-based daily delta, WIP split, trends
-  var _k = renderKPIs;
-  renderKPIs = function(units,target,daily){
-    var s = series(), today = ymd(ref()), d = daily, done = units.filter(isPk).length;
-    if (historyMode !== 'HISTORY') {
-      var prev = s.filter(function(p){ return p.date < today; }), y = prev[prev.length-1];
-      if (y) d = Object.assign({}, daily, { delta: Math.max(0, done - y.packaged) });
+    if (banner) {
+      if (overdueN || urgentN || cableN) {
+        var parts = [];
+        if (overdueN) parts.push('<b>' + overdueN + ' overdue</b>');
+        if (urgentN) parts.push('<b>' + urgentN + ' urgent</b> (shipping within 48h)');
+        if (cableN) parts.push(cableN + ' waiting on a HVAC/NON_HVAC cable before Torque');
+        banner.innerHTML = '🚨 ' + parts.join(' · ');
+        banner.style.display = 'block';
+      } else {
+        banner.style.display = 'none';
+      }
     }
-    _k.call(this, units, target, d);
-    var rw = units.filter(function(u){ return u.status==='REWORK'; }).length, st = units.filter(function(u){ return u.status==='STOPPED'; }).length;
-    var wip = units.length - done, v = velocity(), rem = Math.max(0, target-done), etc;
-    if (rem === 0) etc = 'COMPLETED';
-    else if (v) { var n = Math.ceil(rem/v), e = new Date(ref()); e.setDate(e.getDate()+n); etc = e.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' ('+n+'d)'; }
-    else etc = 'n/a (no run-rate yet)';
-    $('standupVelocity').textContent = v ? v.toFixed(1)+' u/day' : '-- u/day';
-    $('standupETC').textContent = etc;
-    currentMetricsSummary.velocity = v ? v.toFixed(1) : 'n/a'; currentMetricsSummary.etc = etc;
-    $('kpiWipBreakdown').innerHTML = (wip-rw-st)+' flowing · <span style="color:var(--status-rework)">'+rw+' rework</span> · <span style="color:var(--status-stopped)">'+st+' stopped</span>';
-    updateTargetDisplay(); trends({packaged:done, wip:wip, rework:rw, stopped:st}); scurve(done,target,v);
-  };
 
-  // ---- bottleneck wrapper: real packaging-feed measure
-  var _b = renderBottleneckAndDiagnostics;
-  renderBottleneckAndDiagnostics = function(stats,units,target){
-    _b.call(this,stats,units,target);
-    var P = STATION_PIPELINE, feed = units.filter(function(u){
-      var i = P.findIndex(function(x){ return x.toUpperCase()===u.station.toUpperCase(); });
-      return i >= P.length-3 && i < P.length-1 && u.status!=='REWORK' && u.status!=='STOPPED';
-    }).length, done = units.filter(isPk).length, v = velocity(), el = $('diagStarvationRate');
-    var lvl = (target-done > 0 && feed === 0) ? ['STARVED','var(--status-stopped)'] : (v && feed < v) ? ['LOW','var(--status-rework)'] : ['OK','var(--status-done)'];
-    el.textContent = feed+' u · '+lvl[0]; el.style.color = lvl[1];
-    $('diagStarvationHint').textContent = 'Flowing units in last 3 stations' + (v ? ' vs '+v.toFixed(1)+' u/day packaging rate' : '');
-  };
+    rows.sort(function(a,b){
+      var av = a.dl === null ? Infinity : a.dl, bv = b.dl === null ? Infinity : b.dl;
+      return av - bv;
+    });
 
-  // ---- dwell / aging + live queue
-  function dwell(units){
-    var P = STATION_PIPELINE, now = ref(), out = P.map(function(){ return { og:0, rw:0, st:0, maxH:0, aging:0 }; });
-    units.forEach(function(u){
-      if (isPk(u)) return;
-      var i = P.findIndex(function(x){ return x.toUpperCase()===u.station.toUpperCase(); }); if (i<0) i = P.length-1;
-      var o = out[i], t = parseDateTime(u.timestamp), h = t ? Math.max(0,(now-t)/36e5) : 0;
-      if (u.status==='REWORK') o.rw++; else if (u.status==='STOPPED') o.st++; else o.og++;
-      o.maxH = Math.max(o.maxH,h); if (h > AGING_H) o.aging++;
-    });
-    return out;
-  }
-  function fmtAge(h){ return h >= 48 ? (h/24).toFixed(1)+'d' : Math.round(h)+'h'; }
-  var _s = renderStationsPipeline;
-  renderStationsPipeline = function(stats,target){
-    _s.call(this,stats,target);
-    var dw = dwell(currentFilteredUnits), cards = $('stationsGridContainer').children, mx = Math.max(1,Math.max.apply(null,dw.map(function(o){ return o.og+o.rw+o.st; })));
-    Array.prototype.forEach.call(cards,function(c,i){
-      var o = dw[i], row = c.querySelector('.station-tags-row'); if (!row || !o || !o.maxH) return;
-      row.insertAdjacentHTML('beforeend','<span class="stat-pill '+(o.maxH>AGING_H?'pill-stopped':'pill-og')+'" title="Oldest unit at this station">⏱ '+fmtAge(o.maxH)+'</span>');
-    });
-    $('queueRows').innerHTML = stats.map(function(s,i){
-      var o = dw[i], q = o.og+o.rw+o.st, reached = s.done+s.og+s.rework+s.stopped, rr = reached ? Math.round(s.rework/reached*100) : 0;
-      var seg = function(n,c){ return n ? '<div style="width:'+(n/mx*100)+'%;background:'+c+'" title="'+n+'"></div>' : ''; };
-      return '<div class="queue-row" onclick="selectStationFilter(\''+s.name.replace(/'/g,"\\'")+'\')"><span>'+(i+1)+'. '+s.name+'</span>' +
-        '<div class="queue-bar">'+seg(o.og,'var(--status-og)')+seg(o.rw,'var(--status-rework)')+seg(o.st,'var(--status-stopped)')+'</div>' +
-        '<span class="queue-meta">'+q+' held · '+(o.maxH?(o.aging?'<b>':'')+'oldest '+fmtAge(o.maxH)+(o.aging?'</b>':''):'—')+' · RW '+rr+'%</span></div>';
+    if (shipLevelFilter === 'OVERDUE') rows = rows.filter(function(r){ return r.lvl === 'OVERDUE'; });
+    else if (shipLevelFilter === 'URGENT') rows = rows.filter(function(r){ return r.lvl === 'URGENT'; });
+    else if (shipLevelFilter === 'UPCOMING') rows = rows.filter(function(r){ return r.lvl === 'UPCOMING'; });
+    else if (shipLevelFilter === 'CABLE') rows = rows.filter(function(r){ return r.cable; });
+    else if (shipLevelFilter === 'UNDECIDED') rows = rows.filter(function(r){ return r.lvl === 'NONE'; });
+    else if (shipLevelFilter === 'ALL' && pendingKnownN > 0) rows = rows.filter(function(r){ return r.lvl !== 'NONE'; });
+
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:1rem;">No harnesses match this view.</td></tr>';
+      return;
+    }
+
+    var lvlClass = { OVERDUE:'ship-overdue', URGENT:'ship-urgent', UPCOMING:'ship-upcoming', NORMAL:'ship-normal', NONE:'ship-normal' };
+    var stClass = { DONE:'pill-og', OG:'pill-og', REWORK:'pill-rework', STOPPED:'pill-stopped' };
+
+    body.innerHTML = rows.slice(0, 200).map(function(r){
+      var u = r.u;
+      return '<tr>' +
+        '<td>' + esc(u.io) + '</td>' +
+        '<td>' + esc(u.station) + '</td>' +
+        '<td><span class="stat-pill ' + (stClass[u.status]||'pill-og') + '">' + esc(u.status) + '</span></td>' +
+        '<td>' + fmtShipDate(u) + '</td>' +
+        '<td><span class="ship-badge ' + lvlClass[r.lvl] + '">' + fmtDays(r.dl) + '</span></td>' +
+        '<td>' + (r.cable ? '<span class="cable-badge">' + esc(u.cableNeed) + ' needed</span>' : '—') + '</td>' +
+        '<td>' + esc(issueText(u)) + '</td>' +
+        '</tr>';
     }).join('');
-  };
+  }
 
-  // ---- FTQ trend
-  var _a = renderAnalyticsCharts;
-  renderAnalyticsCharts = function(){
-    _a.apply(this,arguments);
-    var h = $('ftqTrendChart'); if (!h) return;
-    var s = series();
-    h.innerHTML = s.length ? buildAnalyticsLineSvg(s.map(function(p){ return { date:p.date, ftq:p.ftq, rw:p.rw }; }),
-      [{label:'FTQ %',key:'ftq',color:'#10b981'},{label:'Rework rate %',key:'rw',color:'#f59e0b'}],'No data') : '<div class="analytics-empty">Historical CSV is not loaded or contains no dated records.</div>';
-  };
+  // Hook into the existing render pipeline: renderDefectTable already runs after every
+  // processRawData/applyFilters cycle, so piggyback on it rather than touching applyFilters.
+  if (typeof renderDefectTable === 'function') {
+    var _rdt = renderDefectTable;
+    renderDefectTable = function(){
+      _rdt.apply(this, arguments);
+      renderShipPlan();
+    };
+  }
 
-  try { var c0 = ck(); if (rawDataStore[c0] && rawDataStore[c0].length) processRawData(rawDataStore[c0]); } catch(e){ console.error('[upgrade] initial refresh skipped', e); }
+  try {
+    if (typeof rawDataStore !== 'undefined' && typeof getActiveConfigKey === 'function' && typeof processRawData === 'function') {
+      var cfg = getActiveConfigKey();
+      if (rawDataStore[cfg] && rawDataStore[cfg].length) processRawData(rawDataStore[cfg]);
+    }
+  } catch (e) { console.error('[ship-plan] initial refresh skipped:', e); }
 })();
 </script>
-</body>
 </html>
